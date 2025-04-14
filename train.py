@@ -10,7 +10,6 @@ from customDataset import CustomDataset
 from torch import optim
 from torch.amp import autocast, GradScaler
 
-
 n_epochs_1 = 1
 n_epochs_2_1 = 1
 n_epochs_2_2 = 1
@@ -28,12 +27,12 @@ lr_3 = 5e-5
 max_content_len = 256  # 增加了上下文长度
 max_seq_len = 512      # 增加了序列长度
 
-data_path = r'/mnt/workspace/train.csv'.format(dataset_name)
+data_path = r'/root/autodl-tmp/train.csv'.format(dataset_name)
 
 min_less_portion = 0.3
 
-Bert_path = r"/mnt/workspace/bert/bert-base-uncased"
-Qwen_path = r"/mnt/workspace/Qwen"  # 修改为 Qwen 2.5 模型路径
+Bert_path = r"/root/autodl-tmp/bert-base-uncased"
+Qwen_path = r"/root/autodl-tmp/Qwen"  # 修改为 Qwen 2.5 模型路径
 
 ROOT_DIR = Path(__file__).parent
 ft_path = os.path.join(ROOT_DIR, r"ft_model_{}".format(dataset_name))
