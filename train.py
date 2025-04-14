@@ -8,7 +8,7 @@ import random
 from model import LogLLM
 from customDataset import CustomDataset
 from torch import optim
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 
 n_epochs_1 = 1
@@ -28,12 +28,12 @@ lr_3 = 5e-5
 max_content_len = 256  # 增加了上下文长度
 max_seq_len = 512      # 增加了序列长度
 
-data_path = r'/mnt/public/gw/SyslogData/{}/train.csv'.format(dataset_name)
+data_path = r'/mnt/workspace/train.csv'.format(dataset_name)
 
 min_less_portion = 0.3
 
-Bert_path = r"/mnt/public/gw/LLM_model/bert-base-uncased"
-Qwen_path = r"/mnt/public/gw/LLM_model/Qwen2.5-8B"  # 修改为 Qwen 2.5 模型路径
+Bert_path = r"/mnt/workspace/bert/bert-base-uncased"
+Qwen_path = r"/mnt/workspace/Qwen"  # 修改为 Qwen 2.5 模型路径
 
 ROOT_DIR = Path(__file__).parent
 ft_path = os.path.join(ROOT_DIR, r"ft_model_{}".format(dataset_name))
@@ -77,7 +77,7 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
     optimizer = torch.optim.AdamW(trainable_model_params, lr=lr)
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.7)
     
-    # 使用混合精度训练
+    # 使用混合精度训练 - 更新为推荐方式
     scaler = GradScaler()
 
     normal_tokens = model.qwen_tokenizer('The sequence is normal.')['input_ids']
@@ -118,8 +118,8 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
             this_batch_indexes = indexes[bathc_i - micro_batch_size: bathc_i]
             this_batch_seqs, this_batch_labels = dataset.get_batch(this_batch_indexes)
 
-            # 使用混合精度训练
-            with autocast():
+            # 使用混合精度训练 - 更新为推荐方式
+            with autocast('cuda'):
                 outputs, targets = model.train_helper(this_batch_seqs, this_batch_labels)
                 loss = criterion(outputs, targets)
 
