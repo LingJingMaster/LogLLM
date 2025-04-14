@@ -7,15 +7,16 @@ from tqdm import tqdm
 from model import LogLLM
 from customDataset import CustomDataset
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from torch.cuda.amp import autocast
 
-max_content_len = 100
-max_seq_len = 128
+max_content_len = 256  # 增加了上下文长度
+max_seq_len = 512      # 增加了序列长度
 batch_size = 32
-dataset_name = 'BGL'   # 'Thunderbird' 'HDFS_v1'  'BGL'  'Liberty‘
+dataset_name = 'BGL'   # 'Thunderbird' 'HDFS_v1'  'BGL'  'Liberty'
 data_path = r'/mnt/public/gw/SyslogData/{}/test.csv'.format(dataset_name)
 
 Bert_path = r"/mnt/public/gw/LLM_model/bert-base-uncased"
-Llama_path = r"/mnt/public/gw/LLM_model/Meta-Llama-3-8B"
+Qwen_path = r"/mnt/public/gw/LLM_model/Qwen2.5-8B"  # 修改为 Qwen 2.5 模型路径
 
 ROOT_DIR = Path(__file__).parent
 ft_path = os.path.join(ROOT_DIR, r"ft_model_{}".format(dataset_name))
@@ -46,13 +47,16 @@ def evalModel(model, dataset, batch_size):
             pre = bathc_i
 
             this_batch_seqs, _ = dataset.get_batch(this_batch_indexes)
-            outputs_ids = model(this_batch_seqs)
-            outputs = model.Llama_tokenizer.batch_decode(outputs_ids)
-
-            # print(outputs)
+            
+            # 使用混合精度推理
+            with autocast():
+                outputs_ids = model(this_batch_seqs)
+            
+            outputs = model.qwen_tokenizer.batch_decode(outputs_ids)
 
             for text in outputs:
-                matches = re.findall(r' (.*?)\.<|end_of_text|>', text)
+                # 使用适合 Qwen 输出格式的正则表达式
+                matches = re.findall(r' (.*?)\.<\|im_end\||<\|endoftext\|>', text)
                 if len(matches) > 0:
                     preds.append(matches[0])
                 else:
@@ -86,6 +90,6 @@ def evalModel(model, dataset, batch_size):
 if __name__ == '__main__':
     print(f'dataset: {data_path}')
     dataset = CustomDataset(data_path)
-    model = LogLLM(Bert_path, Llama_path, ft_path=ft_path, is_train_mode=False, device=device,
+    model = LogLLM(Bert_path, Qwen_path, ft_path=ft_path, is_train_mode=False, device=device,
                    max_content_len=max_content_len, max_seq_len=max_seq_len)
     evalModel(model, dataset, batch_size)

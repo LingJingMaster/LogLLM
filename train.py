@@ -8,6 +8,7 @@ import random
 from model import LogLLM
 from customDataset import CustomDataset
 from torch import optim
+from torch.cuda.amp import autocast, GradScaler
 
 
 n_epochs_1 = 1
@@ -24,15 +25,15 @@ lr_1 = 5e-4
 lr_2_1 = 5e-4
 lr_2_2 = 5e-5
 lr_3 = 5e-5
-max_content_len = 100
-max_seq_len = 128
+max_content_len = 256  # 增加了上下文长度
+max_seq_len = 512      # 增加了序列长度
 
 data_path = r'/mnt/public/gw/SyslogData/{}/train.csv'.format(dataset_name)
 
 min_less_portion = 0.3
 
 Bert_path = r"/mnt/public/gw/LLM_model/bert-base-uncased"
-Llama_path = r"/mnt/public/gw/LLM_model/Meta-Llama-3-8B"
+Qwen_path = r"/mnt/public/gw/LLM_model/Qwen2.5-8B"  # 修改为 Qwen 2.5 模型路径
 
 ROOT_DIR = Path(__file__).parent
 ft_path = os.path.join(ROOT_DIR, r"ft_model_{}".format(dataset_name))
@@ -75,9 +76,12 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
     trainable_model_params = print_number_of_trainable_model_parameters(model)
     optimizer = torch.optim.AdamW(trainable_model_params, lr=lr)
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.7)
+    
+    # 使用混合精度训练
+    scaler = GradScaler()
 
-    normal_tokens = model.Llama_tokenizer('The sequence is normal.')['input_ids']
-    anomalous_tokens = model.Llama_tokenizer('The sequence is anomalous.')['input_ids']
+    normal_tokens = model.qwen_tokenizer('The sequence is normal.')['input_ids']
+    anomalous_tokens = model.qwen_tokenizer('The sequence is anomalous.')['input_ids']
     special_normal_tokens = set(normal_tokens) - set(anomalous_tokens)
     special_anomalous_tokens = set(anomalous_tokens) - set(normal_tokens)
 
@@ -114,17 +118,19 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
             this_batch_indexes = indexes[bathc_i - micro_batch_size: bathc_i]
             this_batch_seqs, this_batch_labels = dataset.get_batch(this_batch_indexes)
 
-            outputs, targets = model.train_helper(this_batch_seqs, this_batch_labels)
+            # 使用混合精度训练
+            with autocast():
+                outputs, targets = model.train_helper(this_batch_seqs, this_batch_labels)
+                loss = criterion(outputs, targets)
 
-            loss = criterion(outputs, targets)
-
-            loss.backward()
-            # print(loss)
+            # 使用 scaler 进行反向传播
+            scaler.scale(loss).backward()
 
             if ((i_th + 1) % gradient_accumulation_steps) == 0:
-                # optimizer the net
-                optimizer.step()  # 更新网络参数
-                optimizer.zero_grad()  # reset grdient # 清空过往梯度
+                # 使用 scaler 更新参数
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()  # reset gradient
 
             acc_mask = torch.zeros_like(targets,device=device).bool()
             for token in special_normal_tokens.union(special_anomalous_tokens):
@@ -161,12 +167,12 @@ if __name__ == '__main__':
     print(f'dataset: {data_path}')
     dataset = CustomDataset(data_path)
 
-    model = LogLLM(Bert_path, Llama_path, device = device, max_content_len = max_content_len, max_seq_len = max_seq_len)
-    # model = LogLLM(Bert_path, Llama_path, ft_path= ft_path, device = device, max_content_len = max_content_len, max_seq_len = max_seq_len)
+    model = LogLLM(Bert_path, Qwen_path, device = device, max_content_len = max_content_len, max_seq_len = max_seq_len)
+    # model = LogLLM(Bert_path, Qwen_path, ft_path= ft_path, device = device, max_content_len = max_content_len, max_seq_len = max_seq_len)
 
     # phase 1
-    print("*" * 10 + "Start training Llama" + "*" * 10)
-    model.set_train_only_Llama()
+    print("*" * 10 + "Start training Qwen" + "*" * 10)
+    model.set_train_only_Qwen()
     trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_epochs_1, lr_1, num_samples=1000)
     # phase 2-1
     print("*" * 10 + "Start training projector" + "*" * 10)
