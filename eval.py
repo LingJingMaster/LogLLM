@@ -23,10 +23,10 @@ max_content_len = 256  # 增加了上下文长度
 max_seq_len = 512      # 增加了序列长度
 batch_size = 32
 dataset_name = 'BGL'   # 'Thunderbird' 'HDFS_v1'  'BGL'  'Liberty'
-data_path = r'/mnt/workspace/test.csv'.format(dataset_name)
+data_path = r'/root/autodl-tmp/train.csv'.format(dataset_name)
 
-Bert_path = r"/mnt/workspace/bert/bert-base-uncased"
-Qwen_path = r"/mnt/workspace/Qwen"  # 修改为 Qwen 2.5 模型路径
+Bert_path = r"/root/autodl-tmp/bert-base-uncased"
+Qwen_path = r"/root/autodl-tmp/Qwen"  # 修改为 Qwen 2.5 模型路径
 
 ROOT_DIR = Path(__file__).parent
 ft_path = os.path.join(ROOT_DIR, r"ft_model_{}".format(dataset_name)) if use_ft_model else None
@@ -96,6 +96,19 @@ def evalModel(model, dataset, batch_size):
         f'Number of detected anomalous seqs: {pred_num_anomalous}; number of detected normal seqs: {pred_num_normal}')
 
     print(f'precision: {precision}, recall: {recall}, f1: {f}, acc: {acc}')
+    
+    # 导出结果到txt文件
+    result_file = f"eval_results_{dataset_name}.txt"
+    with open(result_file, 'w') as f:
+        f.write(f'Dataset: {dataset_name}\n')
+        f.write(f'Number of anomalous seqs: {num_anomalous}; number of normal seqs: {num_normal}\n')
+        f.write(f'Number of detected anomalous seqs: {pred_num_anomalous}; number of detected normal seqs: {pred_num_normal}\n')
+        f.write(f'Precision: {precision:.4f}\n')
+        f.write(f'Recall: {recall:.4f}\n')
+        f.write(f'F1 Score: {f:.4f}\n')
+        f.write(f'Accuracy: {acc:.4f}\n')
+    
+    print(f'评估结果已保存到 {result_file}')
 
 
 if __name__ == '__main__':
