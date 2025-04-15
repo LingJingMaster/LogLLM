@@ -81,7 +81,7 @@ def evalModel(model, dataset, batch_size):
 
     precision = precision_score(gt, preds, average="binary", pos_label=1)
     recall = recall_score(gt, preds, average="binary", pos_label=1)
-    f = f1_score(gt, preds, average="binary", pos_label=1)
+    f1_val = f1_score(gt, preds, average="binary", pos_label=1)
     acc = accuracy_score(gt, preds)
 
     num_anomalous = (gt == 1).sum()
@@ -95,7 +95,7 @@ def evalModel(model, dataset, batch_size):
     print(
         f'Number of detected anomalous seqs: {pred_num_anomalous}; number of detected normal seqs: {pred_num_normal}')
 
-    print(f'precision: {precision}, recall: {recall}, f1: {f}, acc: {acc}')
+    print(f'precision: {precision}, recall: {recall}, f1: {f1_val}, acc: {acc}')
     
     # 导出结果到txt文件
     result_file = f"eval_results_{dataset_name}.txt"
@@ -105,7 +105,7 @@ def evalModel(model, dataset, batch_size):
         f.write(f'Number of detected anomalous seqs: {pred_num_anomalous}; number of detected normal seqs: {pred_num_normal}\n')
         f.write(f'Precision: {precision:.4f}\n')
         f.write(f'Recall: {recall:.4f}\n')
-        f.write(f'F1 Score: {f:.4f}\n')
+        f.write(f'F1 Score: {f1_val:.4f}\n')
         f.write(f'Accuracy: {acc:.4f}\n')
     
     print(f'评估结果已保存到 {result_file}')
