@@ -22,8 +22,8 @@ use_ft_model = args.use_ft_model == 1
 max_content_len = 256  # 增加了上下文长度
 max_seq_len = 512      # 增加了序列长度
 batch_size = 32
-dataset_name = 'BGL'   # 'Thunderbird' 'HDFS_v1'  'BGL'  'Liberty'
-data_path = r'/root/autodl-tmp/train.csv'.format(dataset_name)
+dataset_name = 'Liberty'   # 'Thunderbird' 'HDFS_v1'  'BGL'  'Liberty'
+data_path = r'/root/autodl-tmp/Liberty/test.csv'.format(dataset_name)
 
 Bert_path = r"/root/autodl-tmp/bert-base-uncased"
 Qwen_path = r"/root/autodl-tmp/Qwen"  # 修改为 Qwen 2.5 模型路径
