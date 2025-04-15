@@ -9,12 +9,13 @@ from model import LogLLM
 from customDataset import CustomDataset
 from torch import optim
 from torch.amp import autocast, GradScaler
+from torch.utils.tensorboard import SummaryWriter
 
 n_epochs_1 = 1
 n_epochs_2_1 = 1
 n_epochs_2_2 = 1
 n_epochs_3 = 2
-dataset_name = 'BGL'  # 'Thunderbird' 'HDFS_v1' 'BGL'   'Liberty'
+dataset_name = 'Thunderbird'  # 'Thunderbird' 'HDFS_v1' 'BGL'   'Liberty'
 batch_size = 16
 micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -27,7 +28,7 @@ lr_3 = 5e-5
 max_content_len = 256  # 增加了上下文长度
 max_seq_len = 512      # 增加了序列长度
 
-data_path = r'/root/autodl-tmp/train.csv'.format(dataset_name)
+data_path = r'/root/autodl-tmp/ThunderBird/train.csv'.format(dataset_name)
 
 min_less_portion = 0.3
 
@@ -69,7 +70,12 @@ def print_number_of_trainable_model_parameters(model):
 
 
 
-def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_epochs, lr,num_samples=None):
+def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_epochs, lr, num_samples=None):
+    # 创建 TensorBoard SummaryWriter
+    log_dir = os.path.join("/root/tf-logs", f"{dataset_name}_run")
+    writer = SummaryWriter(log_dir=log_dir)
+    print(f"TensorBoard logs will be saved to: {log_dir}")
+    
     criterion = nn.CrossEntropyLoss(reduction='mean')
 
     trainable_model_params = print_number_of_trainable_model_parameters(model)
@@ -100,6 +106,7 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
     print(f'scheduler_step: {scheduler_step}')
 
     steps = 0
+    global_step = 0
     for epoch in range(int(n_epochs)):
         total_acc, total_acc_count, total_count, train_loss = 0, 0, 0, 0
 
@@ -113,6 +120,7 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
         pbar = tqdm(range(micro_batch_size, end, micro_batch_size), desc='Epoch {}/{}'.format(epoch, n_epochs))
         for i_th, bathc_i in enumerate(pbar):
             steps += 1
+            global_step += 1
 
             this_batch_indexes = indexes[bathc_i - micro_batch_size: bathc_i]
             this_batch_seqs, this_batch_labels = dataset.get_batch(this_batch_indexes)
@@ -135,12 +143,18 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
             for token in special_normal_tokens.union(special_anomalous_tokens):
                 acc_mask[targets == token] = True
 
+            batch_acc = (outputs.argmax(1)[acc_mask] == targets[acc_mask]).sum().item() / max(acc_mask.sum().item(), 1)
             total_acc += (outputs.argmax(1)[acc_mask] == targets[acc_mask]).sum().item()
             total_acc_count += acc_mask.sum()
 
-            train_loss += loss.item() * targets.size(0)
-
+            batch_loss = loss.item()
+            train_loss += batch_loss * targets.size(0)
             total_count += targets.size(0)
+
+            # 记录到 TensorBoard
+            writer.add_scalar('Loss/train', batch_loss, global_step)
+            writer.add_scalar('Accuracy/train', batch_acc, global_step)
+            writer.add_scalar('Learning_rate', scheduler.get_last_lr()[0], global_step)
 
             if steps % scheduler_step == 0:
                 scheduler.step()
@@ -153,6 +167,10 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
                       f"[loss: {train_loss_epoch:3f}]"
                       f"[acc: {train_acc_epoch:3f}]")
 
+                # 记录阶段性汇总指标到 TensorBoard
+                writer.add_scalar('Loss/train_epoch', train_loss_epoch, global_step)
+                writer.add_scalar('Accuracy/train_epoch', train_acc_epoch, global_step)
+
                 total_acc, total_acc_count, total_count, train_loss = 0, 0, 0, 0
 
         if total_count > 0:
@@ -161,6 +179,14 @@ def trainModel(model, dataset, micro_batch_size, gradient_accumulation_steps, n_
             print(f"[Epoch {epoch + 1:{len(str(n_epochs))}}/{n_epochs}] "
                   f"[loss: {train_loss_epoch:3f}]"
                   f"[acc: {train_acc_epoch:3f}]")
+            
+            # 记录每个 epoch 结束时的指标
+            writer.add_scalar('Loss/train_epoch_final', train_loss_epoch, epoch)
+            writer.add_scalar('Accuracy/train_epoch_final', train_acc_epoch, epoch)
+    
+    # 关闭 TensorBoard writer
+    writer.close()
+    print(f"TensorBoard logs saved to: {log_dir}")
 
 if __name__ == '__main__':
     print(f'dataset: {data_path}')
